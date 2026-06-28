@@ -1,0 +1,279 @@
+**Done.** I've created a single, clean, self-contained markdown file that combines everything.
+
+### File Created
+**`EDGE_TRADER_BUILD_SPEC.md`** — One file you can copy into your repo (or feed directly to me / another AI later for building).
+
+**Location in sandbox**: `/home/workdir/artifacts/edge-trader/EDGE_TRADER_BUILD_SPEC.md`
+
+---
+
+### Full Content (Copy Everything Below)
+
+```markdown
+# edge-trader — Complete Build Specification (Single File)
+
+**Purpose**: One self-contained markdown file you can feed to Grok (or another AI) to continue building the project. Contains everything needed: vision, architecture, strategy rules, risk parameters, implementation phases, and technical details.
+
+**Repo**: https://github.com/clearedgeintel/edge-trader  
+**Goal**: Clean, data-analysis-first algorithmic trading bot optimized for small accounts ($500–$1,000 starter capital).
+
+---
+
+## 1. Project Overview & Vision
+
+**edge-trader** is a fresh rewrite of an earlier Alpaca trading bot that had become spaghetti code after evolving from simple rule-based logic into a complex multi-agent LLM system.
+
+**Core Philosophy**:
+- **Data analysis first**, rules + scoring second.
+- LLM used **only** for post-decision educational "Report Cards" and suggested config tweaks (never for trade decisions).
+- Designed specifically for **small retail accounts** — capital preservation > aggressive returns.
+- Transparent, auditable, and educational.
+- Standalone and easy for others to spin up (Alpaca + Supabase + Docker/Railway).
+
+**Target User**: Beginner to intermediate trader starting with $500–$1,000 who wants trustworthy automation they can understand.
+
+**Success Criteria**:
+- Positive expectancy on validated setups
+- Controlled drawdowns
+- High-quality signals via confluence scoring
+- User can explain why any trade was taken using real data
+- Easy standalone deployment
+
+---
+
+## 2. Architecture Overview (v1 — Pure TypeScript)
+
+Single Node.js/TypeScript service for fast iteration and simplicity.
+
+### Layered Architecture
+
+```
+Config & Scheduler
+        ↓
+Data Layer (Alpaca bars, snapshots, multi-TF caching)
+        ↓
+Analysis Layer (Indicators, features, regime detection, scoring)
+        ↓
+Signals / Strategy Layer (MomentumPullback + pluggable modules)
+        ↓
+Risk & Sizing Layer ← Absolute Veto Power
+        ↓
+Execution Layer (orders, brackets, reconciliation)
+        ↓
+Monitor Layer (exits, partials, trailing, attribution)
+        ↓
+Persistence (Supabase) + API + Observability + Report Cards
+```
+
+**Key Principles**:
+- Risk module has **absolute veto** power.
+- Analysis + Signals + Risk code is reused by both live trading and the backtester.
+- Every signal produces a structured rationale object (used for storage, backtesting, and Report Cards).
+- Heavy emphasis on testability (especially Risk and Analysis logic).
+- Clear module boundaries for future evolution (possible Python analysis service in Phase 2).
+
+---
+
+## 3. Tech Stack (v1)
+
+- **TypeScript + Node.js 20+**
+- **Key libraries**:
+  - Alpaca API (`@alpaca-trade/api` or native fetch)
+  - Technical indicators: `node-talib` or `trading-signals` + custom
+  - Validation: `zod`
+  - Dates: `luxon`
+  - Logging: `winston` or `pino`
+  - Database: `pg` + Supabase client (or Drizzle later)
+  - API: `express` or `fastify`
+- **Testing**: Jest
+- **Deployment**: Docker + Railway (single service)
+
+**Future (Phase 2 if needed)**: Extract heavy analysis/backtesting to a Python FastAPI microservice while keeping TS for execution/monitoring/API.
+
+---
+
+## 4. Strategy: Momentum Pullback (Flagship)
+
+### Core Idea
+Catch healthy pullbacks in confirmed trending/momentum stocks or ETFs using multi-timeframe confluence.
+
+### Daily Trend Filter (Higher Timeframe)
+- Price above EMA(200) **or** positive slope on EMA(50/200)
+- ADX(14) > 20–25 (trending, not choppy)
+- Optional: Positive relative strength vs SPY/QQQ
+
+### Lower Timeframe Entry (1H or 15m preferred)
+- Pullback into value zone: EMA(9/21), lower Bollinger Band, or VWAP/support area
+- **Volume decreases** on the pullback (healthy pause)
+- RSI(14) in 35–55 range (resilient)
+- Bullish confirmation candle or momentum resumption
+- No major earnings/news within ±2 sessions
+
+### Confluence Scoring (0–100)
+Weighted combination of the above. Configurable minimum threshold (start at 65–75).
+
+### Structured Rationale (produced by every signal)
+```json
+{
+  "symbol": "AAPL",
+  "score": 78,
+  "reasons": ["Daily trend strong", "Pullback to EMA zone on lower volume", ...],
+  "indicators": { "adx": 27.4, "rsi_15m": 42.1, ... },
+  "regime": "trending_bull",
+  "suggested_stop": 172.10,
+  "suggested_target": 185.50,
+  "risk_dollars": 4.85
+}
+```
+
+This object is stored and used for backtesting attribution and Report Cards.
+
+---
+
+## 5. Risk Management & Position Sizing (Critical)
+
+**Risk module has absolute veto power.** It is the highest priority module to implement.
+
+### Recommended Small-Account Defaults
+
+| Parameter                  | Default     | Notes                                      |
+|---------------------------|-------------|--------------------------------------------|
+| risk_per_trade_pct        | 0.005 (0.5%)| Very safe for small accounts               |
+| max_portfolio_heat_pct    | 0.025       | Total capital at risk                      |
+| max_concurrent_positions  | 3           | Keeps things manageable                    |
+| atr_multiplier            | 1.8         | Adaptive volatility-based stops            |
+| min_reward_risk           | 2.5         | Minimum 2.5:1 R:R                          |
+| daily_loss_limit_pct      | 0.02        | Pause trading after bad day                |
+| max_drawdown_pause_pct    | 0.10        | Circuit breaker from peak                  |
+| correlation_threshold     | 0.70        | Avoid adding correlated risk               |
+| min_avg_daily_volume      | 500000      | Liquidity filter                           |
+
+### Position Sizing Formula
+```ts
+riskDollars = equity * riskPerTradePct
+stopDistance = ATR * atrMultiplier
+qty = riskDollars / stopDistance   // fractional supported
+```
+
+### Portfolio Guards (before every new trade)
+- New trade risk + current open risk ≤ max heat
+- Max positions not exceeded
+- Correlation and sector limits respected
+- Daily loss and drawdown limits not breached
+
+**Veto is absolute** — no overrides allowed.
+
+---
+
+## 6. Backtesting & Validation
+
+First-class citizen. Reuses the same Analysis + Signals + Risk modules as live trading for high fidelity.
+
+**Capabilities**:
+- Event-driven historical replay with realistic fills and slippage
+- Regime-stratified results
+- Full per-trade attribution (MAE, MFE, exit reason, regime, rationale)
+- Walk-forward optimization + stress testing across bull/bear/chop periods
+
+**Validation Path**:
+Backtest → Paper trading agreement → Small live capital ramp (5–10% size first)
+
+---
+
+## 7. LLM / Report Card Layer (Post-Decision Only)
+
+Triggered after signal generation or trade close.
+
+**Input**: Structured rationale + recent performance stats + portfolio context
+
+**Output**: Educational "Report Card" including:
+- Thesis summary
+- Risk snapshot
+- Educational explanation
+- Suggested config tweaks (e.g. "Consider raising ADX threshold in high VIX regimes")
+
+Fully optional and toggleable. Uses cheap/fast model (e.g. Claude Haiku).
+
+---
+
+## 8. Data Model (Supabase)
+
+Core tables:
+- `signals` (with full rationale JSONB)
+- `trades` (P&L, attribution, signal_id)
+- `positions`
+- `daily_performance`
+- `backtest_runs` + `backtest_trades`
+- `runtime_config` (hot-reloadable)
+- `report_cards`
+
+---
+
+## 9. Implementation Phases (Recommended Order)
+
+**Phase 0 – Foundation**
+- Project setup, Docker, Railway, Supabase schema
+- Config system (Zod + runtime DB)
+- Risk module (sizing + guards) — implement and test first
+- Basic Alpaca client + scheduler + status API
+
+**Phase 1 – Data Analysis Core**
+- Multi-TF bar fetching + caching
+- Indicators + regime detection
+- Feature engineering
+
+**Phase 2 – Signals + Backtesting**
+- MomentumPullback strategy with scoring + rationale
+- Backtester (reuses production modules)
+- Metrics + attribution
+
+**Phase 3 – Execution + Monitor**
+- Order placement (fractional + bracket support)
+- Reconciliation and safety gates
+- Monitor with partials and trailing stops
+
+**Phase 4 – Polish**
+- Report Cards (LLM + template fallback)
+- Dashboard / performance views
+- Documentation and small-account onboarding
+
+**Phase 5 – Hardening & Live Ramp**
+- Full safety circuits
+- Paper → small live validation with strict ramp rules
+
+---
+
+## 10. Next Steps / How to Proceed
+
+1. Initialize TypeScript project with recommended structure
+2. Implement **Risk module first** (highest safety impact)
+3. Build config system
+4. Add Data layer + Analysis
+5. Implement MomentumPullback strategy + backtester
+6. Add Execution + Monitor
+7. Add Report Cards and UI
+
+All parameters should be configurable with good small-account defaults and clear comments.
+
+---
+
+**This single file contains everything needed to build edge-trader v1.**
+
+You can now feed this entire document back to Grok (or any coding AI) with instructions like:
+
+> "Using this spec, create the initial TypeScript project structure and implement the Risk module with tests."
+
+Ready when you are.
+```
+
+---
+
+### How to Use This File
+
+1. **In your repo**: Create `EDGE_TRADER_BUILD_SPEC.md` in the root (or in a `docs/` folder).
+2. **For future development**: When you want to continue building, just paste this file (or parts of it) back to me and say something like:
+   - “Using the spec, create the initial project structure”
+   - “Implement the Risk module with tests”
+   - “Build the MomentumPullback strategy”
+
+Would you also like me to generate the **initial TypeScript project skeleton** (folder structure + basic `package.json`, config, etc.) right now?
