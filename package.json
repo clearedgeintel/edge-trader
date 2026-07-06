@@ -1,0 +1,42 @@
+{
+  "name": "edge-trader",
+  "version": "0.1.0",
+  "description": "Data-analysis-first algorithmic trading bot for small accounts",
+  "type": "module",
+  "main": "dist/index.js",
+  "scripts": {
+    "build": "tsc",
+    "start": "node dist/index.js",
+    "dev": "tsx watch src/index.ts",
+    "test": "node --experimental-vm-modules node_modules/jest/bin/jest.js",
+    "test:watch": "node --experimental-vm-modules node_modules/jest/bin/jest.js --watch",
+    "lint": "tsc --noEmit",
+    "backtest": "tsx src/backtest/cli.ts"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "keywords": [
+    "trading",
+    "alpaca",
+    "algorithmic-trading"
+  ],
+  "license": "MIT",
+  "dependencies": {
+    "dotenv": "^17.4.2",
+    "express": "^4.21.2",
+    "luxon": "^3.5.0",
+    "pino": "^9.6.0",
+    "zod": "^3.24.1"
+  },
+  "devDependencies": {
+    "@types/express": "^5.0.0",
+    "@types/jest": "^29.5.14",
+    "@types/luxon": "^3.4.2",
+    "@types/node": "^22.10.2",
+    "jest": "^29.7.0",
+    "ts-jest": "^29.2.5",
+    "tsx": "^4.19.2",
+    "typescript": "^5.7.2"
+  }
+}
