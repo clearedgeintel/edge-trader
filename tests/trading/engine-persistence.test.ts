@@ -149,6 +149,34 @@ describe('TradingEngine persistence wiring', () => {
     expect(engine.getDailyPnl()).toBe(-7);
   });
 
+  it('ignores persisted peak/P&L when RESET_ENGINE_STATE=true', async () => {
+    const persistence = makePersistence();
+    persistence.loadEngineState.mockResolvedValueOnce({
+      peakEquity: 1200,
+      dailyPnl: -7,
+      dailyPnlDate: '2026-06-29',
+    } as never);
+
+    const state: MockState = { positions: [], closedOrders: [] };
+    const engine = new TradingEngine(
+      makeConfig(),
+      makeAlpaca(state),
+      noAnalysis,
+      persistence as unknown as PersistenceService,
+    );
+
+    process.env.RESET_ENGINE_STATE = 'true';
+    try {
+      await engine.init();
+    } finally {
+      delete process.env.RESET_ENGINE_STATE;
+    }
+
+    // Stale peak/P&L are ignored (not even loaded), so no bad-data drawdown pause.
+    expect(persistence.loadEngineState).not.toHaveBeenCalled();
+    expect(engine.getDailyPnl()).toBe(0);
+  });
+
   it('snapshots state every scan and writes broker-side exits through', async () => {
     const persistence = makePersistence();
     const state: MockState = { positions: [position()], closedOrders: [] };

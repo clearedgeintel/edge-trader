@@ -73,8 +73,18 @@ export class TradingEngine {
   async init(): Promise<void> {
     if (!this.persistence) return;
     try {
-      const state = await this.persistence.loadEngineState();
-      if (state) {
+      // Operational escape hatch: RESET_ENGINE_STATE=true makes this instance
+      // ignore the persisted peak equity / daily P&L and rebuild them from live
+      // equity on the next scan. Race-proof (does not depend on DB timing) — use
+      // it to clear a bad-data drawdown/loss pause, then remove the flag.
+      const resetEngineState = process.env.RESET_ENGINE_STATE === 'true';
+
+      const state = resetEngineState ? null : await this.persistence.loadEngineState();
+      if (resetEngineState) {
+        logger.warn(
+          'RESET_ENGINE_STATE=true — ignoring persisted peak equity and daily P&L; rebuilding from live equity',
+        );
+      } else if (state) {
         this.peakEquity = state.peakEquity;
         this.dailyPnl = state.dailyPnl;
         this.dailyPnlDate = state.dailyPnlDate;
