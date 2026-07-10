@@ -31,6 +31,12 @@ export const AlpacaConfigSchema = z.object({
   baseUrl: z.string().url(),
   dataUrl: z.string().url(),
   paper: z.boolean(),
+  /**
+   * Market-data feed. `iex` is free; `sip` (full-market consolidated) requires
+   * Alpaca's Algo Trader Plus subscription. When unset, defaults to iex for
+   * paper and sip for live.
+   */
+  feed: z.enum(['iex', 'sip']).optional(),
 });
 
 export const SchedulerConfigSchema = z.object({

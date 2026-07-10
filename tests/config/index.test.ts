@@ -10,6 +10,7 @@ describe('loadConfigFromEnv', () => {
     delete process.env.ALPACA_PAPER;
     delete process.env.EXECUTION_ENABLED;
     delete process.env.BROKER_STOPS;
+    delete process.env.ALPACA_FEED;
   });
 
   afterAll(() => {
@@ -38,6 +39,18 @@ describe('loadConfigFromEnv', () => {
 
   it('enables broker-resident stops by default', () => {
     expect(loadConfigFromEnv().execution.brokerStops).toBe(true);
+  });
+
+  it('leaves data feed unset by default (paper→iex, live→sip)', () => {
+    expect(loadConfigFromEnv().alpaca.feed).toBeUndefined();
+  });
+
+  it('overrides the data feed with ALPACA_FEED', () => {
+    process.env.ALPACA_FEED = 'iex';
+    process.env.ALPACA_PAPER = 'false';
+    const config = loadConfigFromEnv();
+    expect(config.alpaca.feed).toBe('iex');
+    expect(config.alpaca.paper).toBe(false); // feed override preserves the paper override
   });
 
   it('disables broker stops when BROKER_STOPS=false', () => {

@@ -128,7 +128,7 @@ export class AlpacaClient {
       start,
       limit: String(limit),
       adjustment: 'split',
-      feed: this.config.paper ? 'iex' : 'sip',
+      feed: this.config.feed ?? (this.config.paper ? 'iex' : 'sip'),
     });
     if (end) params.set('end', end);
 

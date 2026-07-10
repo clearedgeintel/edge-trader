@@ -78,6 +78,14 @@ export function loadConfigFromEnv(): AppConfig {
     };
   }
 
+  if (process.env.ALPACA_FEED === 'iex' || process.env.ALPACA_FEED === 'sip') {
+    overrides.alpaca = {
+      ...DEFAULT_CONFIG.alpaca,
+      ...(overrides.alpaca ?? {}),
+      feed: process.env.ALPACA_FEED,
+    };
+  }
+
   if (process.env.PORT) {
     overrides.api = {
       ...DEFAULT_CONFIG.api,
