@@ -24,6 +24,9 @@ export function createStatusRouter(ctx: StatusContext): Express {
     res.json({ status: 'ok', uptime: process.uptime() });
   });
 
+  // Bare URL lands on the dashboard so there's nothing to remember.
+  app.get('/', (_req: Request, res: Response) => res.redirect('/dashboard'));
+
   app.get('/dashboard', (_req: Request, res: Response) => {
     res.type('html').send(DASHBOARD_HTML);
   });
