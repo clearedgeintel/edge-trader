@@ -33,7 +33,10 @@ export function evaluateTrade(
     return veto('invalid_stop_distance', 'Cannot compute position size: invalid ATR or stop distance');
   }
 
-  if (sizing.rewardRisk < config.minRewardRisk) {
+  // minRewardRisk is an inclusive minimum. The strategy sets targets at exactly
+  // minRewardRisk × stopDistance, so a float epsilon keeps that from being
+  // spuriously rejected (e.g. 3.6 / 1.44 === 2.4999999999999996 < 2.5).
+  if (sizing.rewardRisk < config.minRewardRisk - 1e-9) {
     return veto(
       'insufficient_reward_risk',
       `Reward:risk ${sizing.rewardRisk.toFixed(2)} below minimum ${config.minRewardRisk}`,

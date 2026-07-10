@@ -2,6 +2,7 @@ import { jest } from '@jest/globals';
 import { DEFAULT_CONFIG } from '../../src/config/defaults.js';
 import type { AppConfig } from '../../src/config/schema.js';
 import type { AnalysisEngine } from '../../src/analysis/index.js';
+import type { SymbolFeatures } from '../../src/analysis/features.js';
 import type {
   AlpacaAccount,
   AlpacaClient,
@@ -88,6 +89,57 @@ function makeAlpaca(state: MockState) {
 const noAnalysis = {
   analyzeSymbols: async () => [],
 } as unknown as AnalysisEngine;
+
+/** Features crafted to clear the confluence score + risk checks and produce a signal. */
+function qualifyingFeatures(symbol = 'AMZN'): SymbolFeatures {
+  const tf = {
+    price: 180, ema9: 179.5, ema21: 179, ema50: 178, ema200: 175,
+    rsi14: 42, adx14: 28, atr14: 0.8, bbUpper: 181, bbMiddle: 179.5,
+    bbLower: 178, vwap: 179.8, avgVolume20: 1_000_000,
+  };
+  return {
+    symbol,
+    timestamp: '2026-07-10T15:00:00Z',
+    regime: 'trending_bull',
+    daily: { ...tf, adx14: 28, atr14: 3 },
+    hourly: tf,
+    intraday: tf,
+    priceAboveEma200: true,
+    ema50SlopePositive: true,
+    relativeStrengthVsBenchmark: 0.05,
+    pullbackVolumeDecreasing: true,
+    rsiInPullbackZone: true,
+    nearValueZone: true,
+    bullishConfirmation: true,
+    avgDailyVolume: 2_000_000,
+  } as SymbolFeatures;
+}
+
+function analysisOf(features: SymbolFeatures[]): AnalysisEngine {
+  return { analyzeSymbols: async () => features } as unknown as AnalysisEngine;
+}
+
+describe('TradingEngine — signal/report-card dedup', () => {
+  it('emits one signal + card per setup, not one per scan', async () => {
+    const config: AppConfig = {
+      ...makeConfig(),
+      execution: { ...makeConfig().execution, enabled: false },
+    };
+    const state: MockState = { positions: [], closedOrders: [] };
+    const { alpaca } = makeAlpaca(state);
+    const engine = new TradingEngine(config, alpaca, analysisOf([qualifyingFeatures('AMZN')]));
+
+    // AMZN keeps qualifying across three scans.
+    await engine.runScan();
+    await engine.runScan();
+    await engine.runScan();
+
+    expect(engine.getReportCardStore().getAll().length).toBe(1);
+    expect(engine.getPerformanceStore().getSignals().length).toBe(1);
+    // The live snapshot still reflects the currently-actionable signal every scan.
+    expect(engine.getLastSignals().length).toBe(1);
+  });
+});
 
 describe('TradingEngine — broker-resident stops (Fix #2)', () => {
   it('places a GTC broker stop for a whole-share position', async () => {

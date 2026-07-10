@@ -141,6 +141,8 @@ export class TradingEngine {
   private lastPortfolio: PortfolioState | null = null;
   private lastAnalysis: SymbolFeatures[] = [];
   private lastSignals: Signal[] = [];
+  /** Symbols that produced an approved signal on the previous scan (for edge detection). */
+  private signalingSymbols = new Set<string>();
 
   getLastAnalysis(): SymbolFeatures[] {
     return this.lastAnalysis;
@@ -263,7 +265,14 @@ export class TradingEngine {
     this.lastSignals = signals;
     result.signals = signals;
 
-    for (const signal of signals) {
+    // Only record a signal + report card when a symbol newly enters signaling
+    // state (rising edge). A qualifying setup persists across many scans, so
+    // recording every scan would flood the log with near-identical entries.
+    const currentSignaling = new Set(signals.map((s) => s.symbol));
+    const newSignals = signals.filter((s) => !this.signalingSymbols.has(s.symbol));
+    this.signalingSymbols = currentSignaling;
+
+    for (const signal of newSignals) {
       const record = this.performance.recordSignal(signal, false);
       await this.persistSignal(record);
 
