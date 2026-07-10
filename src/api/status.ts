@@ -200,25 +200,51 @@ export function createStatusRouter(ctx: StatusContext): Express {
     });
   });
 
-  app.get('/positions', (_req: Request, res: Response) => {
+  app.get('/positions', async (_req: Request, res: Response) => {
     const store = ctx.tradingEngine?.getPositionStore();
     const positions = store?.getAll() ?? [];
+
+    // Merge live prices from Alpaca (best-effort — the endpoint still works if
+    // the data call fails; prices just come back null).
+    const priceMap = new Map<string, number>();
+    if (ctx.alpaca && positions.length > 0) {
+      try {
+        for (const ap of await ctx.alpaca.getPositions()) {
+          priceMap.set(ap.symbol, parseFloat(ap.currentPrice));
+        }
+      } catch {
+        /* leave prices null */
+      }
+    }
+
     res.json({
       count: positions.length,
-      positions: positions.map((p) => ({
-        symbol: p.symbol,
-        qty: p.qty,
-        originalQty: p.originalQty,
-        entryPrice: p.entryPrice,
-        stopPrice: p.stopPrice,
-        targetPrice: p.targetPrice,
-        trailingStop: p.trailingStop,
-        partialTaken: p.partialTaken,
-        bracketManaged: p.bracketManaged,
-        score: p.rationale.score,
-        regime: p.rationale.regime,
-        openedAt: p.openedAt,
-      })),
+      positions: positions.map((p) => {
+        const currentPrice = priceMap.get(p.symbol) ?? null;
+        const unrealizedPnl =
+          currentPrice !== null ? (currentPrice - p.entryPrice) * p.qty : null;
+        const unrealizedPnlPct =
+          currentPrice !== null && p.entryPrice > 0
+            ? ((currentPrice - p.entryPrice) / p.entryPrice) * 100
+            : null;
+        return {
+          symbol: p.symbol,
+          qty: p.qty,
+          originalQty: p.originalQty,
+          entryPrice: p.entryPrice,
+          currentPrice,
+          unrealizedPnl,
+          unrealizedPnlPct,
+          stopPrice: p.stopPrice,
+          targetPrice: p.targetPrice,
+          trailingStop: p.trailingStop,
+          partialTaken: p.partialTaken,
+          bracketManaged: p.bracketManaged,
+          score: p.rationale.score,
+          regime: p.rationale.regime,
+          openedAt: p.openedAt,
+        };
+      }),
     });
   });
 

@@ -126,7 +126,7 @@ export const DASHBOARD_HTML = `<!DOCTYPE html>
     <div class="section" id="sec-positions">
       <h2>Open Positions</h2>
       <div class="card"><table><thead><tr>
-        <th>Symbol</th><th>Qty</th><th>Entry</th><th>Stop</th><th>Target</th><th>Trail</th><th>Score</th>
+        <th>Symbol</th><th>Qty</th><th>Entry</th><th>Price</th><th>P&L</th><th>Stop</th><th>Target</th><th>Trail</th><th>Score</th>
       </tr></thead><tbody id="positions"></tbody></table></div>
     </div>
 
@@ -242,8 +242,18 @@ export const DASHBOARD_HTML = `<!DOCTYPE html>
           : '';
 
         document.getElementById('positions').innerHTML = positions.positions.length === 0
-          ? '<tr><td colspan="7" style="color:var(--muted)">No open positions</td></tr>'
-          : positions.positions.map(p => '<tr><td>' + p.symbol + '</td><td>' + fmt(p.qty,4) + '</td><td>$' + fmt(p.entryPrice) + '</td><td>$' + fmt(p.stopPrice) + '</td><td>$' + fmt(p.targetPrice) + '</td><td>' + (p.trailingStop ? '$'+fmt(p.trailingStop) : '—') + '</td><td>' + p.score + '</td></tr>').join('');
+          ? '<tr><td colspan="9" style="color:var(--muted)">No open positions</td></tr>'
+          : positions.positions.map(p => {
+              const price = p.currentPrice != null ? '$' + fmt(p.currentPrice) : '—';
+              let pnl = '—', cls = '';
+              if (p.unrealizedPnl != null) {
+                const v = p.unrealizedPnl;
+                cls = v >= 0 ? 'positive' : 'negative';
+                pnl = (v >= 0 ? '+$' : '-$') + fmt(Math.abs(v))
+                  + (p.unrealizedPnlPct != null ? ' (' + (p.unrealizedPnlPct >= 0 ? '+' : '') + fmt(p.unrealizedPnlPct,1) + '%)' : '');
+              }
+              return '<tr><td>' + p.symbol + '</td><td>' + fmt(p.qty,4) + '</td><td>$' + fmt(p.entryPrice) + '</td><td>' + price + '</td><td class="' + cls + '">' + pnl + '</td><td>$' + fmt(p.stopPrice) + '</td><td>$' + fmt(p.targetPrice) + '</td><td>' + (p.trailingStop ? '$'+fmt(p.trailingStop) : '—') + '</td><td>' + p.score + '</td></tr>';
+            }).join('');
 
         document.getElementById('signals').innerHTML = signals.signals.length === 0
           ? '<tr><td colspan="5" style="color:var(--muted)">No recent signals</td></tr>'

@@ -71,6 +71,27 @@ export interface StopOrderRequest {
   stopPrice: number;
 }
 
+/** Raw snake_case shapes as returned by the Alpaca REST API (mapped to camelCase above). */
+interface RawAlpacaAccount {
+  id: string;
+  equity: string;
+  cash: string;
+  buying_power: string;
+  portfolio_value: string;
+  status: string;
+  currency: string;
+}
+
+interface RawAlpacaPosition {
+  symbol: string;
+  qty: string;
+  avg_entry_price: string;
+  current_price: string;
+  market_value: string;
+  unrealized_pl: string;
+  side: string;
+}
+
 export class AlpacaClient {
   private readonly baseUrl: string;
   private readonly dataUrl: string;
@@ -105,11 +126,29 @@ export class AlpacaClient {
   }
 
   async getAccount(): Promise<AlpacaAccount> {
-    return this.request<AlpacaAccount>(`${this.baseUrl}/v2/account`);
+    const a = await this.request<RawAlpacaAccount>(`${this.baseUrl}/v2/account`);
+    return {
+      id: a.id,
+      equity: a.equity,
+      cash: a.cash,
+      buyingPower: a.buying_power,
+      portfolioValue: a.portfolio_value,
+      status: a.status,
+      currency: a.currency,
+    };
   }
 
   async getPositions(): Promise<AlpacaPosition[]> {
-    return this.request<AlpacaPosition[]>(`${this.baseUrl}/v2/positions`);
+    const raw = await this.request<RawAlpacaPosition[]>(`${this.baseUrl}/v2/positions`);
+    return raw.map((p) => ({
+      symbol: p.symbol,
+      qty: p.qty,
+      avgEntryPrice: p.avg_entry_price,
+      currentPrice: p.current_price,
+      marketValue: p.market_value,
+      unrealizedPl: p.unrealized_pl,
+      side: p.side,
+    }));
   }
 
   async getClock(): Promise<{ is_open: boolean; next_open: string; next_close: string }> {
