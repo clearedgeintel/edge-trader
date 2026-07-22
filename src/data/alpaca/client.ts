@@ -90,6 +90,14 @@ export interface SymbolSnapshot {
   volume: number;
 }
 
+export interface AssetInfo {
+  symbol: string;
+  name: string;
+  tradable: boolean;
+  assetClass: string;
+  exchange: string;
+}
+
 /** Raw snake_case shapes as returned by the Alpaca REST API (mapped to camelCase above). */
 interface RawAlpacaAccount {
   id: string;
@@ -224,6 +232,34 @@ export class AlpacaClient {
     const map = (rows: { symbol: string; price: number; percent_change: number }[] = []) =>
       rows.map((r) => ({ symbol: r.symbol, price: r.price, percentChange: r.percent_change }));
     return { gainers: map(data.gainers), losers: map(data.losers) };
+  }
+
+  /** Asset metadata (name/class/tradable) for one symbol; null if not found. */
+  async getAsset(symbol: string): Promise<AssetInfo | null> {
+    try {
+      const a = await this.request<{
+        symbol: string;
+        name: string;
+        tradable: boolean;
+        class: string;
+        exchange: string;
+      }>(`${this.baseUrl}/v2/assets/${symbol}`);
+      return {
+        symbol: a.symbol,
+        name: a.name,
+        tradable: a.tradable,
+        assetClass: a.class,
+        exchange: a.exchange,
+      };
+    } catch {
+      return null;
+    }
+  }
+
+  /** Asset metadata for several symbols (missing/failed lookups are omitted). */
+  async getAssets(symbols: string[]): Promise<AssetInfo[]> {
+    const results = await Promise.all(symbols.map((s) => this.getAsset(s)));
+    return results.filter((a): a is AssetInfo => a !== null);
   }
 
   /** Latest price + daily volume for a batch of symbols in a single call. */

@@ -5,6 +5,20 @@ import { logger } from '../lib/logger.js';
 /** Common-stock ticker heuristic — drops warrants/units/dotted class shares cheaply. */
 const SYMBOL_RE = /^[A-Z]{1,5}$/;
 
+// Fund-name tells for leveraged/inverse ETFs (e.g. "Bull 3X", "UltraPro",
+// "2x Long", "Inverse"). "Short" is inverse too, but excused for the legit
+// short-duration bond funds that also use the word.
+const LEVERAGED_RE = /\b\d+(\.\d+)?x\b|\bultra(pro|short)?\b|\bleveraged\b|\binverse\b/i;
+const SHORT_RE = /\bshort\b/i;
+const SHORT_EXCEPTION_RE = /\b(treasury|bond|term|duration|maturit|income|credit)/i;
+
+/** True when a fund name indicates a leveraged or inverse ETF. */
+export function isLeveragedOrInverse(name: string): boolean {
+  if (LEVERAGED_RE.test(name)) return true;
+  if (SHORT_RE.test(name) && !SHORT_EXCEPTION_RE.test(name)) return true;
+  return false;
+}
+
 export interface ScreenedCandidate {
   symbol: string;
   price: number;
@@ -94,6 +108,36 @@ export class Screener {
 
     if (symbols.size === 0) return [];
     const snapshots = await this.client.getSnapshots([...symbols]);
-    return filterAndRankCandidates(snapshots, this.config).map((c) => c.symbol);
+    const ranked = filterAndRankCandidates(snapshots, this.config).map((c) => c.symbol);
+
+    if (!this.config.excludeLeveraged || ranked.length === 0) return ranked;
+    return this.excludeLeveraged(ranked);
+  }
+
+  /**
+   * Drop leveraged/inverse ETFs and non-tradable/non-equity assets by name.
+   * Symbols whose asset lookup fails are kept (graceful degradation), so an
+   * assets-API hiccup can't empty the universe.
+   */
+  private async excludeLeveraged(symbols: string[]): Promise<string[]> {
+    let info: Map<string, { name: string; tradable: boolean; assetClass: string }>;
+    try {
+      const assets = await this.client.getAssets(symbols);
+      info = new Map(assets.map((a) => [a.symbol, a]));
+    } catch (err) {
+      logger.error({ err }, 'Asset lookup failed — skipping leveraged filter this round');
+      return symbols;
+    }
+
+    return symbols.filter((sym) => {
+      const a = info.get(sym);
+      if (!a) return true; // unknown — keep
+      if (a.assetClass !== 'us_equity' || !a.tradable) return false;
+      if (isLeveragedOrInverse(a.name)) {
+        logger.debug({ symbol: sym, name: a.name }, 'Screener excluded leveraged/inverse ETF');
+        return false;
+      }
+      return true;
+    });
   }
 }

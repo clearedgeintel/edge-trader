@@ -117,6 +117,8 @@ export const ScreenerConfigSchema = z.object({
   maxPrice: z.number().min(0),
   /** Minimum recent daily dollar volume (price × volume) to survive the screen. */
   minDollarVolume: z.number().min(0),
+  /** Exclude leveraged/inverse ETFs (detected by fund name) — unsafe for small accounts. */
+  excludeLeveraged: z.boolean(),
   /** Rebuild the universe at most this often (minutes). */
   refreshMinutes: z.number().int().min(1),
 });

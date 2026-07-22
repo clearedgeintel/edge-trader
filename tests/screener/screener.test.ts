@@ -1,6 +1,10 @@
 import { DEFAULT_CONFIG } from '../../src/config/defaults.js';
-import type { AlpacaClient, SymbolSnapshot } from '../../src/data/alpaca/client.js';
-import { filterAndRankCandidates, Screener } from '../../src/screener/screener.js';
+import type { AlpacaClient, AssetInfo, SymbolSnapshot } from '../../src/data/alpaca/client.js';
+import {
+  filterAndRankCandidates,
+  isLeveragedOrInverse,
+  Screener,
+} from '../../src/screener/screener.js';
 
 const cfg = {
   ...DEFAULT_CONFIG.screener,
@@ -26,10 +30,15 @@ describe('filterAndRankCandidates', () => {
   });
 });
 
+function asset(symbol: string, name: string): AssetInfo {
+  return { symbol, name, tradable: true, assetClass: 'us_equity', exchange: 'NASDAQ' };
+}
+
 function mockClient(
   actives: { symbol: string }[],
   gainers: { symbol: string }[],
   snaps: SymbolSnapshot[],
+  assets: AssetInfo[] = [],
 ): AlpacaClient {
   return {
     getMostActives: async () => actives.map((a) => ({ ...a, volume: 1, tradeCount: 1 })),
@@ -38,8 +47,25 @@ function mockClient(
       losers: [],
     }),
     getSnapshots: async () => snaps,
+    getAssets: async (symbols: string[]) => assets.filter((a) => symbols.includes(a.symbol)),
   } as unknown as AlpacaClient;
 }
+
+describe('isLeveragedOrInverse', () => {
+  it.each([
+    ['Direxion Daily Semiconductor Bull 3X ETF', true],
+    ['ProShares UltraPro QQQ', true],
+    ['ProShares UltraPro Short QQQ', true],
+    ['ProShares Short S&P500', true],
+    ['GraniteShares 2x Long NVDA Daily ETF', true],
+    ['Micron Technology, Inc. Common Stock', false],
+    ['State Street SPDR S&P 500 ETF Trust', false],
+    ['iShares Short Treasury Bond ETF', false],
+    ['ProShares Bitcoin ETF', false],
+  ])('%s -> %s', (name, expected) => {
+    expect(isLeveragedOrInverse(name)).toBe(expected);
+  });
+});
 
 describe('Screener.getUniverse', () => {
   it('returns only the core watchlist when disabled', async () => {
@@ -63,5 +89,24 @@ describe('Screener.getUniverse', () => {
     expect(universe[1]).toBe('MSFT');
     expect(universe.length).toBe(3); // 2 core + 1 screened (capped)
     expect(universe[2]).toBe('TSLA'); // higher dollar volume wins the last slot
+  });
+
+  it('excludes leveraged/inverse ETFs from the screened universe', async () => {
+    const client = mockClient(
+      [{ symbol: 'SOXL' }, { symbol: 'NVDA' }],
+      [],
+      [
+        { symbol: 'SOXL', price: 30, volume: 100_000_000 }, // liquid, but leveraged
+        { symbol: 'NVDA', price: 120, volume: 10_000_000 },
+      ],
+      [
+        asset('SOXL', 'Direxion Daily Semiconductor Bull 3X ETF'),
+        asset('NVDA', 'NVIDIA Corporation Common Stock'),
+      ],
+    );
+    const s = new Screener(client, { ...cfg, enabled: true, maxUniverse: 10 });
+    const universe = await s.getUniverse([]);
+    expect(universe).toContain('NVDA');
+    expect(universe).not.toContain('SOXL');
   });
 });

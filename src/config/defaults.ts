@@ -91,6 +91,7 @@ export const DEFAULT_CONFIG: AppConfig = {
     minPrice: 5,
     maxPrice: 1000,
     minDollarVolume: 20_000_000,
+    excludeLeveraged: true,
     refreshMinutes: 720,
   },
 };
