@@ -71,6 +71,25 @@ export interface StopOrderRequest {
   stopPrice: number;
 }
 
+export interface MostActive {
+  symbol: string;
+  volume: number;
+  tradeCount: number;
+}
+
+export interface Mover {
+  symbol: string;
+  price: number;
+  percentChange: number;
+}
+
+/** Latest price + recent daily volume for a symbol (from the snapshots endpoint). */
+export interface SymbolSnapshot {
+  symbol: string;
+  price: number;
+  volume: number;
+}
+
 /** Raw snake_case shapes as returned by the Alpaca REST API (mapped to camelCase above). */
 interface RawAlpacaAccount {
   id: string;
@@ -167,7 +186,7 @@ export class AlpacaClient {
       start,
       limit: String(limit),
       adjustment: 'split',
-      feed: this.config.feed ?? (this.config.paper ? 'iex' : 'sip'),
+      feed: this.feedParam(),
     });
     if (end) params.set('end', end);
 
@@ -178,6 +197,57 @@ export class AlpacaClient {
 
   async getOrders(status: 'open' | 'closed' | 'all' = 'open'): Promise<AlpacaOrder[]> {
     return this.request<AlpacaOrder[]>(`${this.baseUrl}/v2/orders?status=${status}&limit=100`);
+  }
+
+  private feedParam(): 'iex' | 'sip' {
+    return this.config.feed ?? (this.config.paper ? 'iex' : 'sip');
+  }
+
+  /** Most-active symbols by volume (first-party screener). */
+  async getMostActives(top = 50): Promise<MostActive[]> {
+    const data = await this.request<{
+      most_actives?: { symbol: string; volume: number; trade_count: number }[];
+    }>(`${this.dataUrl}/v1beta1/screener/stocks/most-actives?top=${top}`);
+    return (data.most_actives ?? []).map((m) => ({
+      symbol: m.symbol,
+      volume: m.volume,
+      tradeCount: m.trade_count,
+    }));
+  }
+
+  /** Top gainers/losers by percent change (first-party screener). */
+  async getMovers(top = 50): Promise<{ gainers: Mover[]; losers: Mover[] }> {
+    const data = await this.request<{
+      gainers?: { symbol: string; price: number; percent_change: number }[];
+      losers?: { symbol: string; price: number; percent_change: number }[];
+    }>(`${this.dataUrl}/v1beta1/screener/stocks/movers?top=${top}`);
+    const map = (rows: { symbol: string; price: number; percent_change: number }[] = []) =>
+      rows.map((r) => ({ symbol: r.symbol, price: r.price, percentChange: r.percent_change }));
+    return { gainers: map(data.gainers), losers: map(data.losers) };
+  }
+
+  /** Latest price + daily volume for a batch of symbols in a single call. */
+  async getSnapshots(symbols: string[]): Promise<SymbolSnapshot[]> {
+    if (symbols.length === 0) return [];
+    const url = `${this.dataUrl}/v2/stocks/snapshots?symbols=${symbols.join(',')}&feed=${this.feedParam()}`;
+    const data = await this.request<
+      Record<
+        string,
+        {
+          latestTrade?: { p: number };
+          dailyBar?: { c: number; v: number };
+          prevDailyBar?: { c: number; v: number };
+        }
+      >
+    >(url);
+    const out: SymbolSnapshot[] = [];
+    for (const [symbol, snap] of Object.entries(data)) {
+      if (!snap || (!snap.latestTrade && !snap.dailyBar)) continue;
+      const price = snap.latestTrade?.p ?? snap.dailyBar?.c ?? 0;
+      const volume = snap.prevDailyBar?.v ?? snap.dailyBar?.v ?? 0;
+      out.push({ symbol, price, volume });
+    }
+    return out;
   }
 
   async submitMarketOrder(req: MarketOrderRequest): Promise<AlpacaOrder> {

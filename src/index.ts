@@ -5,6 +5,7 @@ import { BarDataService } from './data/bar-service.js';
 import { createAlpacaClient } from './data/alpaca/client.js';
 import { logger } from './lib/logger.js';
 import { createPersistence } from './persistence/index.js';
+import { Screener } from './screener/index.js';
 import { createStatusRouter } from './api/status.js';
 import { Scheduler } from './scheduler/index.js';
 import { runStartupHealthCheck } from './safety/health.js';
@@ -19,9 +20,11 @@ const barService = alpaca
   : null;
 const analysisEngine = barService ? new AnalysisEngine(barService, config) : null;
 const persistence = createPersistence();
+const screener =
+  alpaca && config.screener.enabled ? new Screener(alpaca, config.screener) : null;
 const tradingEngine =
   alpaca && analysisEngine
-    ? new TradingEngine(config, alpaca, analysisEngine, persistence)
+    ? new TradingEngine(config, alpaca, analysisEngine, persistence, screener)
     : null;
 
 if (tradingEngine) await tradingEngine.init();

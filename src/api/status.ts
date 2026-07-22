@@ -250,8 +250,12 @@ export function createStatusRouter(ctx: StatusContext): Express {
 
   app.get('/analysis', (_req: Request, res: Response) => {
     const features = ctx.tradingEngine?.getLastAnalysis() ?? [];
+    const watchlist = ctx.tradingEngine?.getWatchlist() ?? ctx.config.data.watchlist;
     res.json({
-      watchlist: ctx.config.data.watchlist,
+      watchlist,
+      screenerEnabled: ctx.config.screener.enabled,
+      coreWatchlist: ctx.config.data.watchlist,
+      universeSize: watchlist.length,
       benchmark: ctx.config.data.benchmarkSymbol,
       symbols: features.map((f) => ({
         symbol: f.symbol,

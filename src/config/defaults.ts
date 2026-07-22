@@ -83,4 +83,14 @@ export const DEFAULT_CONFIG: AppConfig = {
     liveRampMinWinRate: 0.4,
     autoAdvance: false,
   },
+  screener: {
+    enabled: false,
+    maxUniverse: 25,
+    topN: 50,
+    includeGainers: true,
+    minPrice: 5,
+    maxPrice: 1000,
+    minDollarVolume: 20_000_000,
+    refreshMinutes: 720,
+  },
 };

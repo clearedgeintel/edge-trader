@@ -104,6 +104,23 @@ export const RampConfigSchema = z.object({
   autoAdvance: z.boolean(),
 });
 
+export const ScreenerConfigSchema = z.object({
+  /** When true, build a dynamic candidate universe from Alpaca's screeners. */
+  enabled: z.boolean(),
+  /** Max symbols analyzed per scan (core watchlist + screened), keeps REST volume bounded. */
+  maxUniverse: z.number().int().min(1).max(100),
+  /** How many rows to pull from each screener source before filtering. */
+  topN: z.number().int().min(1).max(100),
+  /** Also include top gainers (momentum) alongside most-actives. */
+  includeGainers: z.boolean(),
+  minPrice: z.number().min(0),
+  maxPrice: z.number().min(0),
+  /** Minimum recent daily dollar volume (price × volume) to survive the screen. */
+  minDollarVolume: z.number().min(0),
+  /** Rebuild the universe at most this often (minutes). */
+  refreshMinutes: z.number().int().min(1),
+});
+
 export const DataConfigSchema = z.object({
   benchmarkSymbol: z.string(),
   watchlist: z.array(z.string()).min(1),
@@ -131,6 +148,7 @@ export const AppConfigSchema = z.object({
   reportCards: ReportCardConfigSchema,
   safety: SafetyConfigSchema,
   ramp: RampConfigSchema,
+  screener: ScreenerConfigSchema,
 });
 
 export type RiskConfig = z.infer<typeof RiskConfigSchema>;
@@ -145,4 +163,5 @@ export type ReportCardConfig = z.infer<typeof ReportCardConfigSchema>;
 export type SafetyConfig = z.infer<typeof SafetyConfigSchema>;
 export type RampConfig = z.infer<typeof RampConfigSchema>;
 export type RampMode = RampConfig['mode'];
+export type ScreenerConfig = z.infer<typeof ScreenerConfigSchema>;
 export type AppConfig = z.infer<typeof AppConfigSchema>;

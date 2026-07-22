@@ -139,6 +139,28 @@ describe('TradingEngine — signal/report-card dedup', () => {
     // The live snapshot still reflects the currently-actionable signal every scan.
     expect(engine.getLastSignals().length).toBe(1);
   });
+
+  it('ranks signals best-first by confluence score', async () => {
+    const config: AppConfig = {
+      ...makeConfig(),
+      execution: { ...makeConfig().execution, enabled: false },
+    };
+    const strong = qualifyingFeatures('AMZN'); // full confluence -> score 100
+    const weak = qualifyingFeatures('MSFT');
+    weak.relativeStrengthVsBenchmark = -0.01; // -10
+    weak.rsiInPullbackZone = false; // -10
+    weak.bullishConfirmation = false; // -5  => score 75
+
+    const { alpaca } = makeAlpaca({ positions: [], closedOrders: [] });
+    // weak is listed first; ranking must still surface the strong one first.
+    const engine = new TradingEngine(config, alpaca, analysisOf([weak, strong]));
+    await engine.runScan();
+
+    const sigs = engine.getLastSignals();
+    expect(sigs.length).toBe(2);
+    expect(sigs[0].symbol).toBe('AMZN');
+    expect(sigs[0].score).toBeGreaterThan(sigs[1].score);
+  });
 });
 
 describe('TradingEngine — broker-resident stops (Fix #2)', () => {

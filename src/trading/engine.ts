@@ -23,6 +23,7 @@ import { applySizeMultiplier, calculatePositionSize } from '../risk/sizing.js';
 import type { PortfolioState } from '../risk/types.js';
 import type { SymbolFeatures } from '../analysis/features.js';
 import type { MonitoredPosition } from '../monitor/types.js';
+import type { Screener } from '../screener/screener.js';
 import { checkSafetyCircuits } from '../safety/circuits.js';
 import { SafetyTracker } from '../safety/tracker.js';
 import { createDefaultStrategy } from '../strategy/index.js';
@@ -57,6 +58,7 @@ export class TradingEngine {
     private readonly alpaca: AlpacaClient,
     private readonly analysisEngine: AnalysisEngine,
     private readonly persistence: PersistenceService | null = null,
+    private readonly screener: Screener | null = null,
   ) {
     this.strategy = createDefaultStrategy(config);
     this.executor = new OrderExecutor(alpaca, config);
@@ -141,6 +143,12 @@ export class TradingEngine {
   private lastPortfolio: PortfolioState | null = null;
   private lastAnalysis: SymbolFeatures[] = [];
   private lastSignals: Signal[] = [];
+  private lastWatchlist: string[] = [];
+
+  /** Symbols analyzed on the most recent scan (core watchlist + screened universe). */
+  getWatchlist(): string[] {
+    return this.lastWatchlist.length ? this.lastWatchlist : this.config.data.watchlist;
+  }
   /** Symbols that produced an approved signal on the previous scan (for edge detection). */
   private signalingSymbols = new Set<string>();
 
@@ -244,9 +252,10 @@ export class TradingEngine {
       return;
     }
 
-    this.lastAnalysis = await this.analysisEngine.analyzeSymbols(
-      this.config.data.watchlist,
-    );
+    this.lastWatchlist = this.screener
+      ? await this.screener.getUniverse(this.config.data.watchlist)
+      : this.config.data.watchlist;
+    this.lastAnalysis = await this.analysisEngine.analyzeSymbols(this.lastWatchlist);
     result.analysis = this.lastAnalysis;
 
     const signals: Signal[] = [];
@@ -262,6 +271,12 @@ export class TradingEngine {
 
       signals.push(stratResult.signal);
     }
+
+    // Rank best-first so a wider universe fills the limited position slots with
+    // the strongest setups (highest confluence, then reward:risk), not whatever
+    // the watchlist happened to list first.
+    signals.sort((a, b) => b.score - a.score || rewardRisk(b) - rewardRisk(a));
+
     this.lastSignals = signals;
     result.signals = signals;
 
@@ -647,4 +662,10 @@ export class TradingEngine {
 
 function roundPrice(n: number): number {
   return Math.round(n * 100) / 100;
+}
+
+/** Reward:risk of a signal's proposal, used as a ranking tiebreaker. */
+function rewardRisk(signal: Signal): number {
+  const risk = signal.proposal.entryPrice - signal.proposal.stopPrice;
+  return risk > 0 ? (signal.proposal.targetPrice - signal.proposal.entryPrice) / risk : 0;
 }

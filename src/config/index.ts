@@ -93,6 +93,22 @@ export function loadConfigFromEnv(): AppConfig {
     };
   }
 
+  const screener = { ...DEFAULT_CONFIG.screener };
+  let screenerTouched = false;
+  if (process.env.SCREENER_ENABLED === 'true') {
+    screener.enabled = true;
+    screenerTouched = true;
+  }
+  if (process.env.SCREENER_MAX_UNIVERSE) {
+    screener.maxUniverse = parseInt(process.env.SCREENER_MAX_UNIVERSE, 10);
+    screenerTouched = true;
+  }
+  if (process.env.SCREENER_MIN_DOLLAR_VOLUME) {
+    screener.minDollarVolume = parseFloat(process.env.SCREENER_MIN_DOLLAR_VOLUME);
+    screenerTouched = true;
+  }
+  if (screenerTouched) overrides.screener = screener;
+
   if (process.env.EXECUTION_ENABLED === 'true' || process.env.BROKER_STOPS === 'false') {
     overrides.execution = {
       ...DEFAULT_CONFIG.execution,
