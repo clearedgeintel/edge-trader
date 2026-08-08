@@ -37,8 +37,19 @@ describe('PerformanceStore.getAnalytics', () => {
     // Loss: exit 90 -> -$10 -> -1R
     store.recordClosedTrade(pos({ symbol: 'LOSS' }), 90, 1, 'stop_hit');
 
+    // Adopted (score 0) orphan — must be excluded from strategy metrics.
+    store.recordClosedTrade(
+      pos({ symbol: 'ORPHAN', rationale: { ...pos().rationale, score: 0, regime: 'unknown' } }),
+      80,
+      1,
+      'broker_stop',
+    );
+
     const a = store.getAnalytics();
-    expect(a.trades).toBe(2);
+    expect(a.trades).toBe(2); // orphan excluded
+    expect(a.adoptedTrades).toBe(1);
+    expect(a.adoptedNetPnl).toBeCloseTo(-20);
+    expect(a.bySymbol.map((r) => r.key)).not.toContain('ORPHAN');
     expect(a.wins).toBe(1);
     expect(a.losses).toBe(1);
     expect(a.winRate).toBe(0.5);

@@ -92,12 +92,17 @@ export class TradingEngine {
         this.dailyPnlDate = state.dailyPnlDate;
       }
 
-      const [positions, trades, signals, cards] = await Promise.all([
-        this.persistence.loadPositions(),
-        this.persistence.loadClosedTrades(),
-        this.persistence.loadSignals(),
-        this.persistence.loadReportCards(),
-      ]);
+      // Retry the loads: a single transient failure here would start the engine
+      // "clean", letting reconcile re-adopt live positions as score-0 orphans
+      // and then overwrite the good persisted rows. Retrying avoids that.
+      const [positions, trades, signals, cards] = await retry(() =>
+        Promise.all([
+          this.persistence!.loadPositions(),
+          this.persistence!.loadClosedTrades(),
+          this.persistence!.loadSignals(),
+          this.persistence!.loadReportCards(),
+        ]),
+      );
 
       if (positions.length) this.store.hydrate(positions);
       this.performance.hydrate(trades, signals);
@@ -662,6 +667,20 @@ export class TradingEngine {
 
 function roundPrice(n: number): number {
   return Math.round(n * 100) / 100;
+}
+
+/** Retry an async op with linear backoff — smooths transient boot-time failures. */
+async function retry<T>(fn: () => Promise<T>, attempts = 3): Promise<T> {
+  let lastErr: unknown;
+  for (let i = 0; i < attempts; i++) {
+    try {
+      return await fn();
+    } catch (err) {
+      lastErr = err;
+      if (i < attempts - 1) await new Promise((r) => setTimeout(r, 500 * (i + 1)));
+    }
+  }
+  throw lastErr;
 }
 
 /** Reward:risk of a signal's proposal, used as a ranking tiebreaker. */

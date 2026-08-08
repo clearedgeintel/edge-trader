@@ -304,7 +304,12 @@ export const DASHBOARD_HTML = `<!DOCTYPE html>
             { label: 'Avg R', value: a.avgR.toFixed(2) + 'R', cls: pnlClass(a.avgR) },
             { label: 'Net P&L', value: money(a.netPnl), cls: pnlClass(a.netPnl) },
           ].map(m => '<div class="card"><div class="card-label">' + m.label + '</div><div class="card-value ' + (m.cls||'') + '">' + m.value + '</div></div>').join('');
-          bds.innerHTML = breakdownCard('By Exit Reason', 'Exit', a.byExitReason)
+          const adoptedNote = a.adoptedTrades > 0
+            ? '<p style="grid-column:1/-1;color:var(--muted);font-size:0.8125rem">Excludes ' + a.adoptedTrades
+              + ' adopted position(s) (net ' + money(a.adoptedNetPnl) + ') — re-adopted from the broker, not strategy trades.</p>'
+            : '';
+          bds.innerHTML = adoptedNote
+            + breakdownCard('By Exit Reason', 'Exit', a.byExitReason)
             + breakdownCard('By Score Band', 'Score', a.byScoreBand)
             + breakdownCard('By Regime', 'Regime', a.byRegime)
             + breakdownCard('By Symbol', 'Symbol', a.bySymbol);

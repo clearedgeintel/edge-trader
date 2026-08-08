@@ -55,6 +55,9 @@ export interface PerformanceAnalytics {
   avgLoss: number;
   expectancy: number;
   avgR: number;
+  /** Adopted (score-0) positions the bot re-adopted from Alpaca — excluded from the metrics above. */
+  adoptedTrades: number;
+  adoptedNetPnl: number;
   byExitReason: PerfBreakdownRow[];
   byScoreBand: PerfBreakdownRow[];
   byRegime: PerfBreakdownRow[];

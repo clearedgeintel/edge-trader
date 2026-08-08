@@ -145,9 +145,14 @@ export class PerformanceStore {
     };
   }
 
-  /** Aggregate stats + breakdowns over all closed trades (for the analytics view). */
+  /**
+   * Aggregate stats + breakdowns over the strategy's closed trades. Adopted
+   * (score-0) positions the bot re-adopted from Alpaca are NOT the strategy, so
+   * they're excluded from the metrics and reported separately.
+   */
   getAnalytics(): PerformanceAnalytics {
-    const trades = this.trades;
+    const adopted = this.trades.filter((t) => t.score === 0);
+    const trades = this.trades.filter((t) => t.score !== 0);
     const wins = trades.filter((t) => t.pnl > 0);
     const losses = trades.filter((t) => t.pnl <= 0);
     const grossProfit = wins.reduce((s, t) => s + t.pnl, 0);
@@ -169,6 +174,8 @@ export class PerformanceStore {
       avgLoss: losses.length > 0 ? grossLoss / losses.length : 0,
       expectancy: n > 0 ? netPnl / n : 0,
       avgR,
+      adoptedTrades: adopted.length,
+      adoptedNetPnl: adopted.reduce((s, t) => s + t.pnl, 0),
       byExitReason: breakdown(trades, (t) => t.exitReason),
       byScoreBand: breakdown(trades, (t) =>
         t.score >= 90 ? '90-100' : t.score >= 80 ? '80-89' : t.score >= 70 ? '70-79' : '<70',
