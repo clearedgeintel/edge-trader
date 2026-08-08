@@ -2,6 +2,7 @@ import { DEFAULT_CONFIG } from '../../src/config/defaults.js';
 import type { AlpacaClient, AssetInfo, SymbolSnapshot } from '../../src/data/alpaca/client.js';
 import {
   filterAndRankCandidates,
+  isCommodityOrCryptoEtf,
   isLeveragedOrInverse,
   Screener,
 } from '../../src/screener/screener.js';
@@ -64,6 +65,21 @@ describe('isLeveragedOrInverse', () => {
     ['ProShares Bitcoin ETF', false],
   ])('%s -> %s', (name, expected) => {
     expect(isLeveragedOrInverse(name)).toBe(expected);
+  });
+});
+
+describe('isCommodityOrCryptoEtf', () => {
+  it.each([
+    ['ProShares Bitcoin ETF', true],
+    ['SPDR Gold Trust', true],
+    ['United States Oil Fund', true],
+    ['iShares Silver Trust', true],
+    ['Grayscale Ethereum Trust', true],
+    ['Barrick Gold Corporation', false], // operating company, not a fund
+    ['Goldman Sachs Group, Inc.', false], // "gold" not a whole word here
+    ['NVIDIA Corporation Common Stock', false],
+  ])('%s -> %s', (name, expected) => {
+    expect(isCommodityOrCryptoEtf(name)).toBe(expected);
   });
 });
 

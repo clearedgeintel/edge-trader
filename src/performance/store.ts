@@ -1,7 +1,43 @@
 import { randomUUID } from 'node:crypto';
 import type { MonitoredPosition } from '../monitor/types.js';
 import type { Signal } from '../strategy/types.js';
-import type { ClosedTrade, DailyPerformance, PerformanceSnapshot, SignalRecord } from './types.js';
+import type {
+  ClosedTrade,
+  DailyPerformance,
+  PerfBreakdownRow,
+  PerformanceAnalytics,
+  PerformanceSnapshot,
+  SignalRecord,
+} from './types.js';
+
+/** Initial dollar risk of a trade (entry to stop), used for R-multiple math. */
+function tradeRisk(t: ClosedTrade): number {
+  return (t.entryPrice - t.rationale.suggested_stop) * t.qty;
+}
+
+function rMultiple(t: ClosedTrade): number {
+  const risk = tradeRisk(t);
+  return risk > 0 ? t.pnl / risk : 0;
+}
+
+function breakdown(trades: ClosedTrade[], keyOf: (t: ClosedTrade) => string): PerfBreakdownRow[] {
+  const groups = new Map<string, ClosedTrade[]>();
+  for (const t of trades) {
+    const k = keyOf(t);
+    const arr = groups.get(k) ?? [];
+    arr.push(t);
+    groups.set(k, arr);
+  }
+  return [...groups.entries()]
+    .map(([key, ts]) => ({
+      key,
+      trades: ts.length,
+      winRate: ts.filter((t) => t.pnl > 0).length / ts.length,
+      netPnl: ts.reduce((s, t) => s + t.pnl, 0),
+      avgR: ts.reduce((s, t) => s + rMultiple(t), 0) / ts.length,
+    }))
+    .sort((a, b) => a.netPnl - b.netPnl);
+}
 
 export class PerformanceStore {
   private readonly trades: ClosedTrade[] = [];
@@ -106,6 +142,39 @@ export class PerformanceStore {
       todayPnl,
       openPositions,
       recentSignals,
+    };
+  }
+
+  /** Aggregate stats + breakdowns over all closed trades (for the analytics view). */
+  getAnalytics(): PerformanceAnalytics {
+    const trades = this.trades;
+    const wins = trades.filter((t) => t.pnl > 0);
+    const losses = trades.filter((t) => t.pnl <= 0);
+    const grossProfit = wins.reduce((s, t) => s + t.pnl, 0);
+    const grossLoss = losses.reduce((s, t) => s + t.pnl, 0); // <= 0
+    const netPnl = grossProfit + grossLoss;
+    const n = trades.length;
+    const avgR = n > 0 ? trades.reduce((s, t) => s + rMultiple(t), 0) / n : 0;
+
+    return {
+      trades: n,
+      wins: wins.length,
+      losses: losses.length,
+      winRate: n > 0 ? wins.length / n : 0,
+      netPnl,
+      grossProfit,
+      grossLoss,
+      profitFactor: grossLoss !== 0 ? grossProfit / Math.abs(grossLoss) : null,
+      avgWin: wins.length > 0 ? grossProfit / wins.length : 0,
+      avgLoss: losses.length > 0 ? grossLoss / losses.length : 0,
+      expectancy: n > 0 ? netPnl / n : 0,
+      avgR,
+      byExitReason: breakdown(trades, (t) => t.exitReason),
+      byScoreBand: breakdown(trades, (t) =>
+        t.score >= 90 ? '90-100' : t.score >= 80 ? '80-89' : t.score >= 70 ? '70-79' : '<70',
+      ),
+      byRegime: breakdown(trades, (t) => t.regime),
+      bySymbol: breakdown(trades, (t) => t.symbol),
     };
   }
 }

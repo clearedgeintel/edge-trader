@@ -34,6 +34,33 @@ export interface DailyPerformance {
   wins: number;
 }
 
+export interface PerfBreakdownRow {
+  key: string;
+  trades: number;
+  winRate: number;
+  netPnl: number;
+  avgR: number;
+}
+
+export interface PerformanceAnalytics {
+  trades: number;
+  wins: number;
+  losses: number;
+  winRate: number;
+  netPnl: number;
+  grossProfit: number;
+  grossLoss: number;
+  profitFactor: number | null;
+  avgWin: number;
+  avgLoss: number;
+  expectancy: number;
+  avgR: number;
+  byExitReason: PerfBreakdownRow[];
+  byScoreBand: PerfBreakdownRow[];
+  byRegime: PerfBreakdownRow[];
+  bySymbol: PerfBreakdownRow[];
+}
+
 export interface PerformanceSnapshot {
   totalTrades: number;
   wins: number;

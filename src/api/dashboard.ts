@@ -88,6 +88,11 @@ export const DASHBOARD_HTML = `<!DOCTYPE html>
     .tweaks li::before { content: "→ "; }
     #error { display: none; background: #7f1d1d33; border: 1px solid var(--red); color: #fecaca;
       border-radius: 8px; padding: 0.75rem 1rem; margin-bottom: 1rem; font-size: 0.875rem; }
+    .analytics-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 1rem; }
+    .analytics-grid .card h3 { font-size: 0.8125rem; color: var(--muted); margin-bottom: 0.5rem; text-transform: uppercase; letter-spacing: 0.05em; }
+    .analytics-grid table { font-size: 0.8125rem; }
+    .analytics-grid td, .analytics-grid th { padding: 0.35rem 0.5rem; }
+    .num { text-align: right; font-variant-numeric: tabular-nums; }
     .api-links { margin-top: 2rem; padding-top: 1rem; border-top: 1px solid var(--border); font-size: 0.75rem; color: var(--muted); }
     .api-links a { color: var(--muted); text-decoration: none; margin-right: 0.75rem; }
     .api-links a:hover { color: var(--accent); }
@@ -102,6 +107,7 @@ export const DASHBOARD_HTML = `<!DOCTYPE html>
         <a href="#sec-positions">Positions</a>
         <a href="#sec-signals">Signals</a>
         <a href="#sec-trades">Trades</a>
+        <a href="#sec-analytics">Analytics</a>
         <a href="#sec-ramp">Ramp &amp; Safety</a>
         <a href="#sec-cards">Report Cards</a>
       </nav>
@@ -144,6 +150,12 @@ export const DASHBOARD_HTML = `<!DOCTYPE html>
       </tr></thead><tbody id="trades"></tbody></table></div>
     </div>
 
+    <div class="section" id="sec-analytics">
+      <h2>Performance Analytics</h2>
+      <div class="grid" id="analytics-kpis"></div>
+      <div id="analytics-breakdowns" class="analytics-grid"></div>
+    </div>
+
     <div class="section" id="sec-ramp">
       <h2>Ramp &amp; Safety</h2>
       <div class="grid" id="ramp-safety"></div>
@@ -172,6 +184,15 @@ export const DASHBOARD_HTML = `<!DOCTYPE html>
   <script>
     function fmt(n, dec=2) { return n == null ? '—' : Number(n).toFixed(dec); }
     function pnlClass(n) { return n >= 0 ? 'positive' : 'negative'; }
+    function money(n) { return (n >= 0 ? '+$' : '-$') + Math.abs(n).toFixed(2); }
+    function breakdownCard(title, label, rows) {
+      const body = rows.map(r => '<tr><td>' + r.key + '</td><td class="num">' + r.trades
+        + '</td><td class="num">' + (r.winRate*100).toFixed(0) + '%</td><td class="num ' + pnlClass(r.netPnl) + '">' + money(r.netPnl)
+        + '</td><td class="num ' + pnlClass(r.avgR) + '">' + r.avgR.toFixed(2) + '</td></tr>').join('');
+      return '<div class="card"><h3>' + title + '</h3><table><thead><tr><th>' + label
+        + '</th><th class="num">#</th><th class="num">Win</th><th class="num">Net</th><th class="num">AvgR</th></tr></thead><tbody>'
+        + body + '</tbody></table></div>';
+    }
     function regimeBadge(r) {
       const cls = r === 'trending_bull' ? 'badge-bull' : r === 'choppy' ? 'badge-choppy' : 'badge-bear';
       return '<span class="badge ' + cls + '">' + (r || 'unknown') + '</span>';
@@ -266,6 +287,28 @@ export const DASHBOARD_HTML = `<!DOCTYPE html>
         document.getElementById('report-cards').innerHTML = cards.cards.length === 0
           ? '<p style="color:var(--muted);font-size:0.875rem">No report cards yet — generated after signals and trade closes</p>'
           : cards.cards.slice(0, 5).map(c => '<div class="report-card"><h3>' + c.symbol + ' · ' + c.type + ' <span style="color:var(--muted)">(' + c.source + ')</span></h3><p><strong>Thesis:</strong> ' + c.content.thesisSummary + '</p><p><strong>Risk:</strong> ' + c.content.riskSnapshot + '</p><p>' + c.content.educationalExplanation + '</p><ul class="tweaks">' + c.content.suggestedTweaks.map(t => '<li>' + t + '</li>').join('') + '</ul></div>').join('');
+
+        const a = perf.analytics;
+        const kpis = document.getElementById('analytics-kpis');
+        const bds = document.getElementById('analytics-breakdowns');
+        if (!a || a.trades === 0) {
+          kpis.innerHTML = '';
+          bds.innerHTML = '<p style="color:var(--muted);font-size:0.875rem">No closed trades yet — analytics appear once trades close.</p>';
+        } else {
+          const pf = a.profitFactor == null ? '∞' : a.profitFactor.toFixed(2);
+          kpis.innerHTML = [
+            { label: 'Trades', value: a.trades },
+            { label: 'Win Rate', value: (a.winRate*100).toFixed(0) + '%' },
+            { label: 'Profit Factor', value: pf, cls: (a.profitFactor != null && a.profitFactor >= 1) ? 'positive' : 'negative' },
+            { label: 'Expectancy', value: money(a.expectancy) + '/trade', cls: pnlClass(a.expectancy) },
+            { label: 'Avg R', value: a.avgR.toFixed(2) + 'R', cls: pnlClass(a.avgR) },
+            { label: 'Net P&L', value: money(a.netPnl), cls: pnlClass(a.netPnl) },
+          ].map(m => '<div class="card"><div class="card-label">' + m.label + '</div><div class="card-value ' + (m.cls||'') + '">' + m.value + '</div></div>').join('');
+          bds.innerHTML = breakdownCard('By Exit Reason', 'Exit', a.byExitReason)
+            + breakdownCard('By Score Band', 'Score', a.byScoreBand)
+            + breakdownCard('By Regime', 'Regime', a.byRegime)
+            + breakdownCard('By Symbol', 'Symbol', a.bySymbol);
+        }
 
         err.style.display = 'none';
         lastLoaded = Date.now();

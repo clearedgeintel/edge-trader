@@ -166,6 +166,7 @@ export function createStatusRouter(ctx: StatusContext): Express {
         openPositions: 0,
         recentSignals: 0,
       },
+      analytics: perf?.getAnalytics() ?? null,
       trades: perf?.getTrades(30) ?? [],
       daily: perf?.getDailyPerformance() ?? [],
       signals: perf?.getSignals(20) ?? [],

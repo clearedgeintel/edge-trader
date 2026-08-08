@@ -14,7 +14,7 @@ export const DEFAULT_CONFIG: AppConfig = {
     minAvgDailyVolume: 500_000,
   },
   strategy: {
-    minConfluenceScore: 70,
+    minConfluenceScore: 80,
     adxThreshold: 22,
     rsiMin: 35,
     rsiMax: 55,
@@ -92,6 +92,7 @@ export const DEFAULT_CONFIG: AppConfig = {
     maxPrice: 1000,
     minDollarVolume: 20_000_000,
     excludeLeveraged: true,
+    excludeCommodityCrypto: true,
     refreshMinutes: 720,
   },
 };

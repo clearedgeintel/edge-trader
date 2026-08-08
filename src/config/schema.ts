@@ -119,6 +119,8 @@ export const ScreenerConfigSchema = z.object({
   minDollarVolume: z.number().min(0),
   /** Exclude leveraged/inverse ETFs (detected by fund name) — unsafe for small accounts. */
   excludeLeveraged: z.boolean(),
+  /** Exclude commodity/crypto ETFs (gold, oil, bitcoin, ...) — poor fit for an equity trend strategy. */
+  excludeCommodityCrypto: z.boolean(),
   /** Rebuild the universe at most this often (minutes). */
   refreshMinutes: z.number().int().min(1),
 });

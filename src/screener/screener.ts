@@ -19,6 +19,18 @@ export function isLeveragedOrInverse(name: string): boolean {
   return false;
 }
 
+// Fund-name markers vs. an operating company. A commodity/crypto word only
+// excludes when the name also looks like a fund — so "Barrick Gold Corporation"
+// (an equity) is kept while "SPDR Gold Trust" (GLD) is dropped.
+const FUND_RE = /\b(etf|etn|trust|fund|shares|strategy)\b/i;
+const COMMODITY_CRYPTO_RE =
+  /\b(bitcoin|ethereum|crypto|gold|silver|platinum|palladium|copper|oil|natural gas|gasoline|commodit(y|ies)|precious metal|metals|uranium|futures)\b/i;
+
+/** True when a fund name indicates a commodity or crypto ETF (poor equity-trend fit). */
+export function isCommodityOrCryptoEtf(name: string): boolean {
+  return COMMODITY_CRYPTO_RE.test(name) && FUND_RE.test(name);
+}
+
 export interface ScreenedCandidate {
   symbol: string;
   price: number;
@@ -110,22 +122,24 @@ export class Screener {
     const snapshots = await this.client.getSnapshots([...symbols]);
     const ranked = filterAndRankCandidates(snapshots, this.config).map((c) => c.symbol);
 
-    if (!this.config.excludeLeveraged || ranked.length === 0) return ranked;
-    return this.excludeLeveraged(ranked);
+    const needAssetFilter =
+      this.config.excludeLeveraged || this.config.excludeCommodityCrypto;
+    if (!needAssetFilter || ranked.length === 0) return ranked;
+    return this.excludeUnsuitableFunds(ranked);
   }
 
   /**
-   * Drop leveraged/inverse ETFs and non-tradable/non-equity assets by name.
-   * Symbols whose asset lookup fails are kept (graceful degradation), so an
-   * assets-API hiccup can't empty the universe.
+   * Drop leveraged/inverse and commodity/crypto ETFs and non-tradable/non-equity
+   * assets by name. Symbols whose asset lookup fails are kept (graceful
+   * degradation), so an assets-API hiccup can't empty the universe.
    */
-  private async excludeLeveraged(symbols: string[]): Promise<string[]> {
+  private async excludeUnsuitableFunds(symbols: string[]): Promise<string[]> {
     let info: Map<string, { name: string; tradable: boolean; assetClass: string }>;
     try {
       const assets = await this.client.getAssets(symbols);
       info = new Map(assets.map((a) => [a.symbol, a]));
     } catch (err) {
-      logger.error({ err }, 'Asset lookup failed — skipping leveraged filter this round');
+      logger.error({ err }, 'Asset lookup failed — skipping fund filter this round');
       return symbols;
     }
 
@@ -133,8 +147,12 @@ export class Screener {
       const a = info.get(sym);
       if (!a) return true; // unknown — keep
       if (a.assetClass !== 'us_equity' || !a.tradable) return false;
-      if (isLeveragedOrInverse(a.name)) {
+      if (this.config.excludeLeveraged && isLeveragedOrInverse(a.name)) {
         logger.debug({ symbol: sym, name: a.name }, 'Screener excluded leveraged/inverse ETF');
+        return false;
+      }
+      if (this.config.excludeCommodityCrypto && isCommodityOrCryptoEtf(a.name)) {
+        logger.debug({ symbol: sym, name: a.name }, 'Screener excluded commodity/crypto ETF');
         return false;
       }
       return true;
