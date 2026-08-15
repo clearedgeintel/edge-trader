@@ -14,7 +14,7 @@ export const DEFAULT_CONFIG: AppConfig = {
     minAvgDailyVolume: 500_000,
   },
   strategy: {
-    minConfluenceScore: 80,
+    minConfluenceScore: 90,
     adxThreshold: 22,
     rsiMin: 35,
     rsiMax: 55,

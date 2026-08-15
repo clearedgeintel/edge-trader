@@ -43,3 +43,22 @@ describe('AlpacaClient field mapping (Alpaca returns snake_case)', () => {
     expect(pos.symbol).toBe('AMZN');
   });
 });
+
+describe('AlpacaClient.getBarsRange pagination', () => {
+  it('follows next_page_token until exhausted', async () => {
+    const pages = [
+      { bars: [{ t: 't1', o: 1, h: 1, l: 1, c: 1, v: 1 }], next_page_token: 'p2' },
+      { bars: [{ t: 't2', o: 2, h: 2, l: 2, c: 2, v: 2 }], next_page_token: 'p3' },
+      { bars: [{ t: 't3', o: 3, h: 3, l: 3, c: 3, v: 3 }], next_page_token: null },
+    ];
+    let call = 0;
+    global.fetch = jest.fn(async () => {
+      const body = pages[call++];
+      return { ok: true, json: async () => body, text: async () => JSON.stringify(body) };
+    }) as unknown as typeof fetch;
+
+    const bars = await new AlpacaClient(config, creds).getBarsRange('AAPL', '1Day', '2026-01-01');
+    expect(bars.map((b) => b.t)).toEqual(['t1', 't2', 't3']);
+    expect(call).toBe(3);
+  });
+});

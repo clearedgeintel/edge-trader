@@ -207,6 +207,40 @@ export class AlpacaClient {
     return this.request<AlpacaOrder[]>(`${this.baseUrl}/v2/orders?status=${status}&limit=100`);
   }
 
+  /**
+   * Fetch the full bar history for a date range, following pagination. Used by
+   * the backtester (unlike getBars, which returns a single capped page).
+   */
+  async getBarsRange(
+    symbol: string,
+    timeframe: '1Min' | '15Min' | '1Hour' | '1Day',
+    start: string,
+    end?: string,
+  ): Promise<AlpacaBar[]> {
+    const all: AlpacaBar[] = [];
+    let pageToken: string | undefined;
+    do {
+      const params = new URLSearchParams({
+        timeframe,
+        start,
+        limit: '10000',
+        adjustment: 'split',
+        feed: this.feedParam(),
+      });
+      if (end) params.set('end', end);
+      if (pageToken) params.set('page_token', pageToken);
+
+      const url = `${this.dataUrl}/v2/stocks/${symbol}/bars?${params}`;
+      const data = await this.request<{
+        bars: AlpacaBar[] | null;
+        next_page_token: string | null;
+      }>(url);
+      if (data.bars) all.push(...data.bars);
+      pageToken = data.next_page_token ?? undefined;
+    } while (pageToken);
+    return all;
+  }
+
   private feedParam(): 'iex' | 'sip' {
     return this.config.feed ?? (this.config.paper ? 'iex' : 'sip');
   }

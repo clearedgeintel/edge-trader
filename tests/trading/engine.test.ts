@@ -147,8 +147,7 @@ describe('TradingEngine — signal/report-card dedup', () => {
     };
     const strong = qualifyingFeatures('AMZN'); // full confluence -> score 100
     const weak = qualifyingFeatures('MSFT');
-    weak.rsiInPullbackZone = false; // -10
-    weak.bullishConfirmation = false; // -5  => score 85 (still >= min 80)
+    weak.bullishConfirmation = false; // -5  => score 95 (still >= min 90)
 
     const { alpaca } = makeAlpaca({ positions: [], closedOrders: [] });
     // weak is listed first; ranking must still surface the strong one first.
