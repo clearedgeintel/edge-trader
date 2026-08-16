@@ -7,7 +7,8 @@ import {
 } from '../../src/risk/sizing.js';
 import type { TradeProposal } from '../../src/risk/types.js';
 
-const config = DEFAULT_CONFIG.risk;
+// Pin atrMultiplier so this formula test is independent of the tuned default.
+const config = { ...DEFAULT_CONFIG.risk, atrMultiplier: 1.8 };
 
 function makeProposal(overrides: Partial<TradeProposal> = {}): TradeProposal {
   return {

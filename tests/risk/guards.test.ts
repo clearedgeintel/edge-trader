@@ -6,7 +6,8 @@ import type {
   TradeProposal,
 } from '../../src/risk/types.js';
 
-const config = DEFAULT_CONFIG.risk;
+// Pin atrMultiplier so these veto tests are independent of the tuned default.
+const config = { ...DEFAULT_CONFIG.risk, atrMultiplier: 1.8 };
 
 function makePortfolio(overrides: Partial<PortfolioState> = {}): PortfolioState {
   return {

@@ -6,7 +6,7 @@ export const DEFAULT_CONFIG: AppConfig = {
     riskPerTradePct: 0.005,
     maxPortfolioHeatPct: 0.025,
     maxConcurrentPositions: 3,
-    atrMultiplier: 1.8,
+    atrMultiplier: 2.5,
     minRewardRisk: 2.5,
     dailyLossLimitPct: 0.02,
     maxDrawdownPausePct: 0.1,
@@ -14,7 +14,7 @@ export const DEFAULT_CONFIG: AppConfig = {
     minAvgDailyVolume: 500_000,
   },
   strategy: {
-    minConfluenceScore: 90,
+    minConfluenceScore: 95,
     adxThreshold: 22,
     rsiMin: 35,
     rsiMax: 55,
