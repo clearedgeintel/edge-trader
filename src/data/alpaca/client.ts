@@ -137,11 +137,17 @@ export class AlpacaClient {
     };
   }
 
-  private async request<T>(url: string, init?: RequestInit): Promise<T> {
+  private async request<T>(url: string, init?: RequestInit, attempt = 0): Promise<T> {
     const response = await fetch(url, {
       ...init,
       headers: { ...this.headers, ...init?.headers },
     });
+
+    // Back off and retry on rate limiting (common when backtesting a universe).
+    if (response.status === 429 && attempt < 5) {
+      await new Promise((r) => setTimeout(r, 2000 * (attempt + 1)));
+      return this.request<T>(url, init, attempt + 1);
+    }
 
     if (!response.ok) {
       const body = await response.text();

@@ -11,3 +11,6 @@ Thumbs.db
 # Local scratch / unrelated tooling — not part of the app
 mcps/
 terminals/
+# Throwaway experiment scripts
+_*.ts
+_*.mjs
